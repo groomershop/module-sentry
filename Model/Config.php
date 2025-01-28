@@ -2,11 +2,13 @@
 
 /**
  * @author Mygento Team
- * @copyright 2017-2021 Mygento (https://www.mygento.com)
+ * @copyright 2017-2025 Mygento (https://www.mygento.com)
  * @package Mygento_Sentry
  */
 
 namespace Mygento\Sentry\Model;
+
+use Magento\Framework\App\Config\ScopeConfigInterface;
 
 class Config
 {
@@ -36,11 +38,6 @@ class Config
     private $enabled;
 
     /**
-     * @var \Magento\Framework\App\Config\ScopeConfigInterface
-     */
-    private $scopeConfig;
-
-    /**
      * @var \Sentry\State\HubInterface
      */
     private $hub;
@@ -51,12 +48,29 @@ class Config
     private $isExceptionsExcludeActive;
 
     /**
-     * @param \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
+     * @var string|null
      */
+    private $release = null;
+
+    private ScopeConfigInterface $scopeConfig;
+    private ReleaseIdentifier $releaseIdentifier;
+
+    /**
+     * @var float|null
+     */
+    private $profilesRate = null;
+
+    /**
+     * @var float|null
+     */
+    private $tracesRate = null;
+
     public function __construct(
-        \Magento\Framework\App\Config\ScopeConfigInterface $scopeConfig
+        ScopeConfigInterface $scopeConfig,
+        ReleaseIdentifier $releaseIdentifier
     ) {
         $this->scopeConfig = $scopeConfig;
+        $this->releaseIdentifier = $releaseIdentifier;
     }
 
     /**
@@ -67,7 +81,7 @@ class Config
         if ($this->connection === null) {
             $this->connection = $this->scopeConfig->getValue(
                 'sentry/general/connection',
-                \Magento\Store\Model\ScopeInterface::SCOPE_STORE
+                \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
             );
         }
 
@@ -82,19 +96,55 @@ class Config
         if ($this->loglevel === null) {
             $this->loglevel = (int) $this->scopeConfig->getValue(
                 'sentry/general/loglevel',
-                \Magento\Store\Model\ScopeInterface::SCOPE_STORE
+                \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
             );
         }
 
         return $this->loglevel;
     }
 
-    public function getEnvironment(): ?string
+    /**
+     * @return float|null
+     */
+    public function getProfilesSampleRate()
+    {
+        if ($this->profilesRate === null) {
+            $this->profilesRate = $this->scopeConfig->isSetFlag(
+                'sentry/general/profile_enabled',
+                \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
+            ) ? (float) $this->scopeConfig->getValue(
+                'sentry/general/profiles_sample_rate',
+                \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
+            ) : null;
+        }
+
+        return $this->profilesRate;
+    }
+
+    /**
+     * @return float|null
+     */
+    public function getTracesSampleRate()
+    {
+        if ($this->tracesRate === null) {
+            $this->tracesRate = $this->scopeConfig->isSetFlag(
+                'sentry/general/traces_enabled',
+                \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
+            ) ? (float) $this->scopeConfig->getValue(
+                'sentry/general/traces_sample_rate',
+                \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
+            ) : null;
+        }
+
+        return $this->tracesRate;
+    }
+
+    public function getEnvironment()
     {
         if ($this->environment === null) {
             $this->environment = $this->scopeConfig->getValue(
                 'sentry/general/environment',
-                \Magento\Store\Model\ScopeInterface::SCOPE_STORE
+                \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
             );
         }
 
@@ -106,7 +156,7 @@ class Config
         if ($this->errorMessageFilterPattern === null) {
             $this->errorMessageFilterPattern = $this->scopeConfig->getValue(
                 'sentry/general/error_message_filter_pattern',
-                \Magento\Store\Model\ScopeInterface::SCOPE_STORE
+                \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
             );
         }
 
@@ -119,7 +169,7 @@ class Config
             try {
                 $this->enabled = $this->scopeConfig->getValue(
                     'sentry/general/enabled',
-                    \Magento\Store\Model\ScopeInterface::SCOPE_STORE
+                    \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
                 );
             } catch (\DomainException $e) {
                 unset($e);
@@ -139,6 +189,8 @@ class Config
         if ($this->hub === null) {
             \Sentry\init([
                 'dsn' => $this->getConnection(),
+                'traces_sample_rate' => $this->getTracesSampleRate(),
+                'profiles_sample_rate' => $this->getProfilesSampleRate(),
                 'environment' => $this->getEnvironment() ?? null,
                 'before_send' => function (\Sentry\Event $event): ?\Sentry\Event {
                     $pattern = $this->getErrorMessageFilterPattern();
@@ -171,10 +223,19 @@ class Config
         if ($this->isExceptionsExcludeActive === null) {
             $this->isExceptionsExcludeActive = $this->scopeConfig->isSetFlag(
                 'sentry/general/exclude_exceptions',
-                \Magento\Store\Model\ScopeInterface::SCOPE_STORE
+                \Magento\Store\Model\ScopeInterface::SCOPE_STORE,
             );
         }
 
         return $this->isExceptionsExcludeActive;
+    }
+
+    public function getRelease(): string
+    {
+        if ($this->release == null) {
+            $this->release = $this->releaseIdentifier->getValue();
+        }
+
+        return $this->release;
     }
 }

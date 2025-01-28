@@ -2,7 +2,7 @@
 
 /**
  * @author Mygento Team
- * @copyright 2017-2021 Mygento (https://www.mygento.com)
+ * @copyright 2017-2025 Mygento (https://www.mygento.com)
  * @package Mygento_Sentry
  */
 
@@ -68,8 +68,8 @@ class SentryHandler extends AbstractProcessingHandler
         $this->setLevel(
             Logger::getLevelName(
                 /** @phpstan-ignore-next-line */
-                $this->config->getLogLevel()
-            )
+                $this->config->getLogLevel(),
+            ),
         );
 
         return parent::isHandling($record);
@@ -93,6 +93,10 @@ class SentryHandler extends AbstractProcessingHandler
         $event->setLevel($this->getLogLevel($record['level']));
         $event->setMessage($record['message']);
         $event->setLogger(sprintf('monolog.%s', $record['channel']));
+        $release = $this->config->getRelease();
+        if ($release) {
+            $event->setRelease($release);
+        }
 
         $hint = new EventHint();
 
